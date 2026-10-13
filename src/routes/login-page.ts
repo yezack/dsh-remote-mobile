@@ -341,9 +341,9 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         if (document.baseURI && document.querySelector('base')) {
           return new URL('api/remote-mobile/verify', document.baseURI).toString();
         }
-        // ⚠️ 这一整段内联脚本位于模板字符串中：正则里的反斜杠必须写成 \\，
-        // 否则 \/ 会在字符串求值时退化成 /，拼出 //auth/?$/ 触发行注释，
-        // 使整个 <script> 抛 SyntaxError、登录按钮彻底失效（下两处同理）。
+        // ⚠️ 本段内联脚本位于模板字符串内：反斜杠在字符串求值时会被吃掉，
+        // 所以 /auth 后缀正则必须写成双反斜杠形式，否则会拼出以两条斜杠开头
+        // 的行注释，使整个 script 抛 SyntaxError、登录按钮彻底失效（下两处同理）。
         const pathname = window.location.pathname.replace(/\\/auth\\/?$/, '/');
         return new URL('api/remote-mobile/verify', window.location.origin + pathname).toString();
       } catch (e) {
@@ -402,7 +402,7 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
           }, 600);
         } else {
           statusMsg.className = 'status-msg error';
-          statusMsg.innerText = data.reason || (isEn ? 'Authorization failed, please try again' : '授权失败，请重试');
+          statusMsg.innerText = data.reason || ${JSON.stringify(isEn ? 'Authorization failed, please try again' : '授权失败，请重试')};
           statusMsg.style.display = 'block';
           submitBtn.disabled = false;
           submitBtn.innerText = ${JSON.stringify(i18n.submitBtn)};

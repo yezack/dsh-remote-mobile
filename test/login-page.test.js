@@ -16,14 +16,21 @@ function extractInlineScripts(html) {
  */
 function runLoginPageScript({ html, pathname, search = '', baseURI = '', hasBaseTag = false }) {
   const src = extractInlineScripts(html)[0]
-  const makeEl = () => ({
-    value: '',
-    className: '',
-    innerText: '',
-    style: {},
-    disabled: false,
-    addEventListener() {},
-  })
+  const elements = new Map()
+  const makeEl = (id = 'anon') => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        id,
+        value: '',
+        className: '',
+        innerText: '',
+        style: {},
+        disabled: false,
+        addEventListener() {},
+      })
+    }
+    return elements.get(id)
+  }
   const sandbox = {
     window: {
       location: { pathname, search, origin: 'http://192.168.1.5:3080', href: '' },
@@ -32,7 +39,7 @@ function runLoginPageScript({ html, pathname, search = '', baseURI = '', hasBase
     document: {
       baseURI,
       querySelector: (sel) => (hasBaseTag && sel === 'base' ? {} : null),
-      getElementById: () => makeEl(),
+      getElementById: (id) => makeEl(id),
     },
     URL,
     URLSearchParams,
@@ -42,8 +49,11 @@ function runLoginPageScript({ html, pathname, search = '', baseURI = '', hasBase
     fetch: async () => ({ json: async () => ({ success: false }) }),
   }
   vm.createContext(sandbox)
-  vm.runInContext(`${src}\n;globalThis.__probe = { verifyApiUrl, successRedirectUrl };`, sandbox)
-  return sandbox.__probe
+  vm.runInContext(
+    `${src}\n;globalThis.__probe = { verifyApiUrl, successRedirectUrl, doVerify };`,
+    sandbox,
+  )
+  return { ...sandbox.__probe, elements }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -126,4 +136,36 @@ test('successRedirectUrl 登录后不跳出网关子路径', () => {
     }).successRedirectUrl,
     'http://192.168.1.5:3080/app/dsh/',
   )
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 回归：内联脚本不得引用仅在服务端存在的标识符。
+// 历史 bug：失败分支的回退文案写成裸 isEn（忘了插值），浏览器求值即抛
+// ReferenceError，被外层 catch 吞掉后把真实原因显示成「网络连接异常」。
+// ─────────────────────────────────────────────────────────────────────────────
+test('内联脚本不得残留服务端标识符，且失败回退文案可用', async () => {
+  const html = getLoginPageHtml(DUMMY_PEM)
+  const script = extractInlineScripts(html)[0]
+
+  for (const name of ['isEn', 'i18n', 'inlinePublicKey', 'publicKeyPem', 'lang']) {
+    assert.ok(
+      !new RegExp(`\\b${name}\\b`).test(script),
+      `内联脚本不得残留仅在服务端存在的标识符 ${name}（应改用 \${JSON.stringify(...)} 插值）`,
+    )
+  }
+  assert.ok(script.includes(JSON.stringify('授权失败，请重试')), '失败回退文案应以插值形式内联')
+
+  // 服务端返回 { success: false } 但缺 reason 时：显示本地化回退文案，而不是网络错误
+  const { doVerify, elements } = runLoginPageScript({ html, pathname: '/app/dsh/auth/' })
+  await doVerify('123456')
+  const statusMsg = elements.get('statusMsg')
+  assert.equal(statusMsg.innerText, '授权失败，请重试')
+  assert.equal(statusMsg.className, 'status-msg error')
+  assert.equal(elements.get('submitBtn').disabled, false, '失败后按钮必须恢复可点击')
+
+  // 英文页同样走插值后的英文回退文案（这正是原先 isEn 想表达的分支）
+  const en = getLoginPageHtml(DUMMY_PEM, 'en')
+  const enRun = runLoginPageScript({ html: en, pathname: '/auth' })
+  await enRun.doVerify('123456')
+  assert.equal(enRun.elements.get('statusMsg').innerText, 'Authorization failed, please try again')
 })

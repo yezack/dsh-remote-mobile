@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.1] - 2026-10-13
+
+### Fixed (修复授权页无法登录：模板字符串转义与未插值的服务端标识符)
+
+- **授权页三处正则转义被模板字符串吞掉（致命）**：内联脚本里的 `/\/auth\/?$/` 写在 TS 模板字符串内，`\/` 在字符串求值时退化为 `/`，服务端实际发出的 HTML 变成 `replace(//auth/?$/, '/')` —— `//` 被解析为行注释、语句被截断，整个 `<script>` 抛 SyntaxError，`form` 的 submit 回调从未绑定，表现为**任何浏览器下点「立即授权连接」都毫无反应、无法登录**。三处均改为双反斜杠形式。
+- **失败提示引用未定义的服务端变量**：`data.reason` 缺失时的回退文案写成了裸 `isEn`（服务端变量未做插值），浏览器求值即抛 `ReferenceError`，被外层 catch 吞掉后把真实失败原因显示为「网络连接异常」。改为 `${JSON.stringify(...)}` 插值。
+- **测试**：`test/login-page.test.js` 新增断言 —— 内联脚本必须可被解析、不得出现被吞掉反斜杠的 `replace(//auth`、不得残留裸服务端标识符（`isEn` / `i18n` / `lang` 等）；并用 `node:vm` 假浏览器覆盖「失败响应缺 `reason`」时的提示文案与网关子路径下的 URL 推导。
+
+---
+
 ## [1.9.0] - 2026-10-09
 
 ### Fixed (适配 DSH 0.1.7+ 配置存储变更，修复插件配置无法持久化)
