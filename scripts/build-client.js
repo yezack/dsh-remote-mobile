@@ -82,7 +82,7 @@ try {
       if (!isSymlink) {
         cpSync(resolve(rootDir, 'lib'), resolve(dshProfileMod, 'lib'), { recursive: true, force: true });
         copyFileSync(resolve(rootDir, 'package.json'), resolve(dshProfileMod, 'package.json'));
-        console.log(`🔄 [build-client] 自动同步最新全部产物 (lib + package.json) 到 DSH 运行目录 -> ~/.dsh/profiles/web/node_modules/dsh-remote-mobile`);
+        console.log(`🔄 [build-client] 自动同步最新全部产物 (lib + package.json) 到 DSH 运行目录 -> ${dshProfileMod}`);
       }
     }
   }).catch((err) => {
