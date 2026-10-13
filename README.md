@@ -1,5 +1,9 @@
 <div align="center">
 
+> **本包是 [IceApriler/dsh-remote-mobile](https://github.com/IceApriler/dsh-remote-mobile) 的 fork**，以 **`@yezack/dsh-remote-mobile`** 名义发布，额外包含「授权页无法登录（模板字符串转义）」与「按新包名加载」等修复。
+> 安装命令请使用：`dsh plugin --profile web add @yezack/dsh-remote-mobile`
+> 下文出现的 `dsh-remote-mobile` 均指本包；插件内部名称与数据目录 `~/.dsh/remote-mobile/` 保持不变，升级不会丢失已有配对与配置。
+
 # dsh-remote-mobile
 
 **DeepSeek Harness (DSH) 远程与移动端安全网关插件**

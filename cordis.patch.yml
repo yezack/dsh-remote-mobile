@@ -1,4 +1,4 @@
 - insert:
     - id: remote-mobile
-      name: 'dsh-remote-mobile'
+      name: '@yezack/dsh-remote-mobile'
 

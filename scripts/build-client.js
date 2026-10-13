@@ -48,7 +48,7 @@ const bundleContent = `/**
  * 源码请移步 src/client/ 目录进行模块化开发与维护。
  */
 window.__ModuleLoader__.load({
-  id: "dsh-remote-mobile",
+  id: ${JSON.stringify(pkg.name)},
   factory: function(require) {
     var module = { exports: {} };
     var exports = module.exports;
@@ -73,7 +73,8 @@ export declare function TailscaleMobileSection(props: any): any;
 writeFileSync(outClientDts, dtsContent, 'utf8');
 
 // 5. 若检测到 DSH 运行环境且非软链接，自动同步拷贝最新全部产物（含后端 lib 与 client）
-const dshProfileMod = resolve(process.env.HOME || '', '.dsh/profiles/web/node_modules/dsh-remote-mobile');
+//    路径必须跟随包名（DSH 以包名安装到 node_modules/<pkg.name>，scoped 包多一层目录）
+const dshProfileMod = resolve(process.env.HOME || '', '.dsh/profiles/web/node_modules', pkg.name);
 try {
   import('node:fs').then(({ existsSync, lstatSync, cpSync, copyFileSync }) => {
     if (existsSync(dshProfileMod)) {

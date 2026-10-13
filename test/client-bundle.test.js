@@ -51,3 +51,33 @@ test('客户端 Bundle 实时刷新链路完整性测试', async (t) => {
     assert.ok(!apiSrc.includes('fetch("/api/remote-mobile/'), 'src/client/api.js 中不应存在硬编码绝对路径 fetch')
   })
 })
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 回归：包身份一致性。
+// DSH 以「包名」作为插件身份：宿主侧 cordis.patch.yml 的条目 name 决定 import
+// 哪个模块，客户端侧 window.__DSH_BOOT__.entries[].id 也等于包名。
+// 任何一处停留在旧包名，插件都会整包不可用（宿主解析失败被跳过；客户端 row
+// 永远等不到自己的 factory）。
+// ─────────────────────────────────────────────────────────────────────────────
+test('包身份一致性：注册 id / patch 条目名必须等于 package.json name', () => {
+  const pkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8'))
+
+  const reg = bundle.match(/__ModuleLoader__\.load\(\{\s*\n?\s*id:\s*["']([^"']+)["']/)
+  assert.ok(reg, 'lib/client.js 应包含 __ModuleLoader__.load({ id: ... })')
+  assert.equal(reg[1], pkg.name, '客户端注册 id 必须等于 package.json name')
+
+  const patch = readFileSync(resolve(__dirname, '../cordis.patch.yml'), 'utf8')
+  const names = [...patch.matchAll(/name:\s*['"]([^'"]+)['"]/g)].map((m) => m[1])
+  assert.ok(names.length > 0, 'cordis.patch.yml 应包含插件条目 name')
+  for (const n of names) {
+    assert.equal(n, pkg.name, 'cordis.patch.yml 条目 name 必须等于 package.json name')
+  }
+})
+
+test('客户端 bundle 内联版本号跟随 package.json 版本', () => {
+  const pkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf8'))
+  const ver = bundle.match(/var PLUGIN_VERSION = "([^"]*)";/)
+  assert.ok(ver, 'bundle 应包含 PLUGIN_VERSION')
+  assert.equal(ver[1], `v${pkg.version}`, 'bundle 版本号应跟随 package.json')
+  assert.equal(pkg.name, '@yezack/dsh-remote-mobile')
+})

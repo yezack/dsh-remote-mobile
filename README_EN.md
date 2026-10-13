@@ -1,5 +1,9 @@
 <div align="center">
 
+> **This package is a fork of [IceApriler/dsh-remote-mobile](https://github.com/IceApriler/dsh-remote-mobile)**, published as **`@yezack/dsh-remote-mobile`**, with extra fixes (auth page login failure caused by template-literal escaping; loading under the new package name).
+> Install with: `dsh plugin --profile web add @yezack/dsh-remote-mobile`
+> Every `dsh-remote-mobile` below refers to this fork; the plugin's internal name and its data directory `~/.dsh/remote-mobile/` are unchanged, so existing pairings and settings survive the upgrade.
+
 # dsh-remote-mobile
 
 **DeepSeek Harness (DSH) Remote & Mobile Security Guard Plugin**

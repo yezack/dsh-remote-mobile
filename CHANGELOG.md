@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.9.2] - 2026-10-13
+
+### Fixed (修复按新包名发布后插件整包无法加载：包身份不一致)
+
+- **背景**：本仓库以 `@yezack/dsh-remote-mobile` 发布（上游 `dsh-remote-mobile` 的 npm 所有权不在本人名下）。DSH 以**包名**作为插件身份，改名后残留的两处旧包名会让整包不可用：
+  - **宿主侧**：`cordis.patch.yml` 条目 `name` 仍指向 `dsh-remote-mobile`，loader 解析不到该模块，该 bundle 被跳过（插件完全不激活）；
+  - **客户端侧**：`lib/client.js` 的 `window.__ModuleLoader__.load({ id })` 仍注册为 `dsh-remote-mobile`，与 `window.__DSH_BOOT__.entries[].id`（等于包名 `@yezack/dsh-remote-mobile`）不匹配，该 row 永远等不到自己的 factory（设置面板等前端功能不加载）。
+- **修复**：`cordis.patch.yml` 条目名与客户端注册 id 改为跟随 `package.json` 的 `name`；`scripts/build-client.js` 的注册 id 与产物自动同步路径不再硬编码包名（统一由 `pkg.name` 推导），从根上避免改名时再次漏改。
+- **测试**：`test/client-bundle.test.js` 新增包身份一致性断言 —— 客户端注册 id、`cordis.patch.yml` 条目 `name` 必须等于 `package.json` 的 `name`，bundle 内联版本号必须跟随包版本。
+
+---
+
 ## [1.9.1] - 2026-10-13
 
 ### Fixed (修复授权页无法登录：模板字符串转义与未插值的服务端标识符)
