@@ -341,7 +341,10 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         if (document.baseURI && document.querySelector('base')) {
           return new URL('api/remote-mobile/verify', document.baseURI).toString();
         }
-        const pathname = window.location.pathname.replace(/\/auth\/?$/, '/');
+        // ⚠️ 这一整段内联脚本位于模板字符串中：正则里的反斜杠必须写成 \\，
+        // 否则 \/ 会在字符串求值时退化成 /，拼出 //auth/?$/ 触发行注释，
+        // 使整个 <script> 抛 SyntaxError、登录按钮彻底失效（下两处同理）。
+        const pathname = window.location.pathname.replace(/\\/auth\\/?$/, '/');
         return new URL('api/remote-mobile/verify', window.location.origin + pathname).toString();
       } catch (e) {
         return '/api/remote-mobile/verify';
@@ -353,7 +356,7 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         // 预留参数能力：支持通过 ?redirect=/path 携带登录后重定向目标
         const redirectParam = urlParams.get('redirect');
         if (redirectParam && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
-          const appPrefix = window.location.pathname.replace(/\/auth\/?$/, '');
+          const appPrefix = window.location.pathname.replace(/\\/auth\\/?$/, '');
           if (appPrefix && redirectParam.startsWith(appPrefix)) {
             return window.location.origin + redirectParam;
           }
@@ -362,7 +365,7 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         if (document.baseURI && document.querySelector('base')) {
           return new URL('./', document.baseURI).toString();
         }
-        const appPrefix = window.location.pathname.replace(/\/auth\/?$/, '/');
+        const appPrefix = window.location.pathname.replace(/\\/auth\\/?$/, '/');
         return window.location.origin + appPrefix;
       } catch (e) {
         return '/';
