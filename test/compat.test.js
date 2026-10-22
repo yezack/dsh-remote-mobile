@@ -1,8 +1,17 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
+import zlib from 'node:zlib'
 import { SessionStore } from '../lib/auth/token.js'
-import { patchHttpServerWithVirtualizer, CRYPTO_POLYFILL_SNIPPET, CLIPBOARD_POLYFILL_SNIPPET, DRAGGABLE_NAV_SNIPPET, FORCE_DESKTOP_SUPPRESSION_SNIPPET, MOBILE_DISMISS_SNIPPET } from '../lib/bridge/compat.js'
+import {
+  patchHttpServerWithVirtualizer,
+  mountIndexInjections,
+  CRYPTO_POLYFILL_SNIPPET,
+  CLIPBOARD_POLYFILL_SNIPPET,
+  DRAGGABLE_NAV_SNIPPET,
+  FORCE_DESKTOP_SUPPRESSION_SNIPPET,
+  MOBILE_DISMISS_SNIPPET,
+} from '../lib/bridge/compat.js'
 import { getClientIp } from '../lib/auth/tailscale.js'
 import { StyleSnippetStore } from '../lib/styles/style-snippets.js'
 
@@ -336,5 +345,103 @@ test('上下文虚拟化与兼容性补丁测试 (compat.ts)', async (t) => {
     assert.ok(DRAGGABLE_NAV_SNIPPET.includes('isSessionRow && !isActionOrToggle'))
     // 收起行为仍被守卫吞掉（真实用户点击收起按钮走浏览器合成事件，不受影响）
     assert.ok(DRAGGABLE_NAV_SNIPPET.includes('收起侧边栏|Collapse sidebar|Open sidebar'))
+  })
+
+  await t.test('所有注入客户端的 Snippets 脚本均具有合法的 JavaScript 语法', () => {
+    const snippets = [
+      { name: 'CRYPTO_POLYFILL_SNIPPET', code: CRYPTO_POLYFILL_SNIPPET },
+      { name: 'CLIPBOARD_POLYFILL_SNIPPET', code: CLIPBOARD_POLYFILL_SNIPPET },
+      { name: 'FORCE_DESKTOP_SUPPRESSION_SNIPPET', code: FORCE_DESKTOP_SUPPRESSION_SNIPPET },
+      { name: 'DRAGGABLE_NAV_SNIPPET', code: DRAGGABLE_NAV_SNIPPET },
+      { name: 'MOBILE_DISMISS_SNIPPET', code: MOBILE_DISMISS_SNIPPET },
+    ]
+
+    for (const { name, code } of snippets) {
+      assert.doesNotThrow(() => {
+        new Function(code)
+      }, `${name} 存在 JavaScript 语法错误`)
+    }
+  })
+
+  await t.test('Gzip 压缩 HTML 响应能够正确解压缩并注入样式与脚本，重新压缩且无损', (t, done) => {
+    const mockServer = new EventEmitter()
+    const store = new SessionStore({ devicesFile: `/tmp/dsh-compat-gzip-${Date.now()}.json` })
+    const styleStore = new StyleSnippetStore()
+    const gateMiddleware = (req, res, next) => {
+      next?.()
+      return true
+    }
+
+    patchHttpServerWithVirtualizer(mockServer, gateMiddleware, store, styleStore)
+
+    const rawHtml = '<!DOCTYPE html><html><head><title>DSH Gzip Test</title></head><body>Gzip content</body></html>'
+    const compressedGzip = zlib.gzipSync(Buffer.from(rawHtml, 'utf8'))
+
+    const req = {
+      headers: { host: '127.0.0.1:3080' },
+      socket: { remoteAddress: '127.0.0.1' },
+    }
+
+    const headersWritten = {}
+    const res = {
+      writeHead(code, hdrs = {}) {
+        Object.assign(headersWritten, hdrs)
+      },
+      setHeader(k, v) {
+        headersWritten[k] = v
+      },
+      getHeader(k) {
+        return headersWritten[k]
+      },
+      removeHeader(k) {
+        delete headersWritten[k]
+        delete headersWritten[String(k).toLowerCase()]
+      },
+      end(data) {
+        // 返回的 data 应该依然是 Gzip 压缩后的 Buffer
+        assert.ok(Buffer.isBuffer(data))
+        assert.equal(data[0], 0x1f)
+        assert.equal(data[1], 0x8b)
+
+        // 解压后应包含注入的样式与 Polyfill 脚本
+        const decompressed = zlib.gunzipSync(data).toString('utf8')
+        assert.ok(decompressed.includes('id="dsh-remote-mobile-style-snippets"'))
+        assert.ok(decompressed.includes('id="dsh-crypto-polyfill"'))
+        assert.ok(decompressed.includes('id="dsh-clipboard-polyfill"'))
+        assert.ok(decompressed.includes('id="dsh-draggable-nav"'))
+        done()
+      },
+    }
+
+    mockServer.emit('request', req, res)
+    res.setHeader('content-type', 'text/html; charset=utf-8')
+    res.setHeader('content-encoding', 'gzip')
+    res.end(compressedGzip)
+  })
+
+  await t.test('mountIndexInjections 通过 tapIndex 注入样式与脚本且具备幂等性', () => {
+    const styleStore = new StyleSnippetStore()
+    let registeredTap = null
+    const mockCtx = {
+      webServer: {
+        tapIndex(fn) {
+          registeredTap = fn
+        },
+      },
+      on(event, handler) {},
+    }
+
+    mountIndexInjections(mockCtx, styleStore)
+
+    assert.ok(typeof registeredTap === 'function')
+    const inputHtml = '<!DOCTYPE html><html><head><title>Test</title></head><body>Body</body></html>'
+    const once = registeredTap(inputHtml)
+    assert.ok(once.includes('id="dsh-remote-mobile-style-snippets"'))
+    assert.ok(once.includes('id="dsh-crypto-polyfill"'))
+
+    // 幂等性测试：再次注入不重复出现
+    const twice = registeredTap(once)
+    const countStyle = (twice.match(/id="dsh-remote-mobile-style-snippets"/g) || []).length
+    assert.equal(countStyle, 1)
   })
 })

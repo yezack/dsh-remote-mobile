@@ -74,8 +74,12 @@ test('授权页内联脚本可编译（无被模板字符串吞掉的反斜杠�
     )
   }
 
-  // 必须保持正则形态，且不得出现 //auth 这种被吃掉反斜杠的行注释
-  assert.match(html, /\/\\\/auth\\\/\?\$\//, '应生成转义完整的 /\\/auth\\/?$/ 正则字面量')
+  // 1.10.0 起采纳上游写法：new RegExp('/auth/?$') —— 构造参数是普通字符串、不含
+  // 反斜杠，从根上规避模板字符串把转义折叠掉；同时不得出现折叠后的 //auth 行注释。
+  assert.ok(
+    html.includes("new RegExp('/auth/?$')"),
+    "应使用 new RegExp('/auth/?$') 显式构造，避免模板字符串转义折叠",
+  )
   assert.ok(!html.includes('replace(//auth'), '不得出现 replace(//auth 形式（会变成行注释）')
 })
 

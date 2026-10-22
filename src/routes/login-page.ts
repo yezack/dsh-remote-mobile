@@ -341,10 +341,11 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         if (document.baseURI && document.querySelector('base')) {
           return new URL('api/remote-mobile/verify', document.baseURI).toString();
         }
-        // ⚠️ 本段内联脚本位于模板字符串内：反斜杠在字符串求值时会被吃掉，
-        // 所以 /auth 后缀正则必须写成双反斜杠形式，否则会拼出以两条斜杠开头
-        // 的行注释，使整个 script 抛 SyntaxError、登录按钮彻底失效（下两处同理）。
-        const pathname = window.location.pathname.replace(/\\/auth\\/?$/, '/');
+        // 用 new RegExp 显式构造正则：字符串里不含反斜杠，杜绝外层模板字符串
+        // 把转义吃掉后拼出「两条斜杠开头的行注释」，进而使整段内联脚本
+        // SyntaxError（历史上曾因此完全无法登录，见 CHANGELOG 1.9.1 / 1.10.0）。
+        // 下两处同理。
+        const pathname = window.location.pathname.replace(new RegExp('/auth/?$'), '/');
         return new URL('api/remote-mobile/verify', window.location.origin + pathname).toString();
       } catch (e) {
         return '/api/remote-mobile/verify';
@@ -356,7 +357,7 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         // 预留参数能力：支持通过 ?redirect=/path 携带登录后重定向目标
         const redirectParam = urlParams.get('redirect');
         if (redirectParam && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
-          const appPrefix = window.location.pathname.replace(/\\/auth\\/?$/, '');
+          const appPrefix = window.location.pathname.replace(new RegExp('/auth/?$'), '');
           if (appPrefix && redirectParam.startsWith(appPrefix)) {
             return window.location.origin + redirectParam;
           }
@@ -365,7 +366,7 @@ export function getLoginPageHtml(publicKeyPem?: string, lang: 'zh' | 'en' = 'zh'
         if (document.baseURI && document.querySelector('base')) {
           return new URL('./', document.baseURI).toString();
         }
-        const appPrefix = window.location.pathname.replace(/\\/auth\\/?$/, '/');
+        const appPrefix = window.location.pathname.replace(new RegExp('/auth/?$'), '/');
         return window.location.origin + appPrefix;
       } catch (e) {
         return '/';

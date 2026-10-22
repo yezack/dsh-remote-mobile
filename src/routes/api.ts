@@ -90,6 +90,12 @@ export function createRoutes(store: SessionStore, styleStore?: StyleSnippetStore
           pairingBridgeMode: bridgeState.mode,
           pairingBridgeConflict: bridgeState.conflictWith || '',
           pairingBridgeConflictId: bridgeState.conflictEntryId || '',
+          // 独立安全网关运行状态
+          gateway: {
+            ...store.getGatewayStatus(),
+            activePort: store.getActivePort(),
+            gatewayPort: opts.gatewayPort || 3081,
+          },
         })
       },
     },
